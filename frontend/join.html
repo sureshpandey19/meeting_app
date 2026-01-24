@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Join Meeting</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Join Meeting</h1>
+
+      <section class="card">
+        <p id="host-banner"></p>
+        <div id="join-form">
+          <label>
+            Meeting ID
+            <input id="join-meetingid" type="text" placeholder="Meeting ID" />
+          </label>
+          <label>
+            Password
+            <input id="join-password" type="password" placeholder="Meeting password" />
+          </label>
+          <input id="join-hosttoken" type="hidden" />
+          <label>
+            Display Name
+            <input id="join-display" type="text" placeholder="Student / Guest" />
+          </label>
+          <button id="join-btn">Request to Join</button>
+        </div>
+        <div class="join-summary" id="join-summary" hidden>
+          <div class="join-summary-line">
+            <strong id="join-summary-title">Joined</strong>
+            <span id="join-summary-details">Meeting is active.</span>
+          </div>
+          <button id="join-form-toggle" class="icon-btn icon-only" type="button" aria-label="Edit details">
+            <span class="icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92-8.06 8.06zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.82 1.82 3.75 3.75 1.83-1.81z"/>
+              </svg>
+            </span>
+          </button>
+        </div>
+        <div class="meeting-layout has-side" id="meeting-layout">
+          <div class="meeting-main">
+            <div id="av-panel" class="av-panel" hidden>
+              <div class="debug-panel" id="debug-panel" hidden>
+                <strong>LiveKit Debug</strong>
+                <pre id="debug-output"></pre>
+              </div>
+              <div class="av-header" id="av-header">
+                <div>
+                  <h3>Audio / Video</h3>
+                  <p id="av-status">AV is ready after joining.</p>
+                  <p id="meeting-timer" class="meeting-timer" hidden></p>
+                </div>
+                <div class="av-header-actions">
+                  <button id="side-toggle-btn" class="av-ghost" type="button">Participants</button>
+                  <button id="debug-toggle-btn" class="av-ghost" type="button" hidden>Debug</button>
+                  <button class="av-ghost icon-btn icon-only" id="av-leave-btn" type="button" aria-label="Leave meeting" disabled>
+                    <span class="icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10v-2H5V5h10V3zm4.5 9-4-4-1.4 1.4 1.6 1.6H9v2h6.7l-1.6 1.6 1.4 1.4 4-4z"/>
+                      </svg>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <div class="av-stage">
+                <div class="av-grid" id="av-grid">
+                  <div class="av-tile av-tile-local" id="av-local-tile">
+                    <div class="av-tile-header">
+                      <span class="av-name" id="av-local-name">You</span>
+                    </div>
+                    <div class="av-media">
+                      <div class="av-media-track" id="av-local"></div>
+                      <div class="av-media-status">
+                        <button class="av-status-icon mic" id="av-tile-mic" data-state="off" type="button" aria-label="Toggle microphone" disabled>
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
+                          </svg>
+                        </button>
+                        <button class="av-status-icon cam" id="av-tile-camera" data-state="off" type="button" aria-label="Toggle camera" disabled>
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M15 8l4-3v14l-4-3v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2z"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="av-name-overlay" id="av-local-overlay">You</div>
+                      <div class="av-name-placeholder" id="av-local-placeholder">You</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <aside class="meeting-side">
+            <div id="guest-panel" class="side-card" hidden>
+              <h3>Participants</h3>
+              <div id="participants-count"></div>
+              <ul id="participants-public"></ul>
+            </div>
+            <div id="request-panel" class="request-panel side-card" hidden>
+              <div class="request-header">
+                <h3>Join Requests</h3>
+                <span id="request-count" class="request-count">0</span>
+              </div>
+              <ul id="request-list"></ul>
+            </div>
+            <div id="host-panel" class="side-card" hidden>
+              <h3>Participants</h3>
+              <ul id="participants-list"></ul>
+            </div>
+          </aside>
+        </div>
+        <pre id="join-output"></pre>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+[Unit]
+Description=LiveKit Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/suresh/pam_ops_2026/meeting_app
+ExecStart=/home/suresh/pam_ops_2026/meeting_app/livekit-server --config /home/suresh/pam_ops_2026/meeting_app/livekit.yaml
+Restart=on-failure
+RestartSec=5
+User=suresh
+
+[Install]
+WantedBy=multi-user.target

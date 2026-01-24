@@ -1,0 +1,7 @@
+.venv/
+*.log
+backend/.env
+config/livekit.php
+config/livekit_setup.php
+config/recovery_allow.php
+.DS_Store

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting App - Phase 3</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Meeting App (Phase 3)</h1>
+
+      <section class="card">
+        <h2>Create Instant Meeting</h2>
+        <p>No details required. This generates a join link immediately.</p>
+        <button id="create-instant-btn">Create Instant Link</button>
+        <pre id="create-output" hidden></pre>
+        <div class="link-block" id="create-links" hidden>
+          <label for="create-join-link">Guest Join Details</label>
+          <div class="link-row">
+            <textarea id="create-join-link" rows="4" readonly></textarea>
+            <button class="copy-btn" data-copy-target="create-join-link" data-status-target="create-join-copy-status">
+              <span class="copy-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H10V7h9v14z"/>
+                </svg>
+              </span>
+              Copy Guest Link
+            </button>
+          </div>
+          <a id="create-join-open" class="link-open" href="#" target="_blank" rel="noopener">Open Guest Link</a>
+          <span class="copy-status" id="create-join-copy-status" aria-live="polite"></span>
+          <label for="create-host-link">Host Details</label>
+          <div class="link-row">
+            <textarea id="create-host-link" rows="4" readonly></textarea>
+            <button class="copy-btn" data-copy-target="create-host-link" data-status-target="create-host-copy-status">
+              <span class="copy-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H10V7h9v14z"/>
+                </svg>
+              </span>
+              Copy Host Link
+            </button>
+          </div>
+          <a id="create-host-open" class="link-open" href="#" target="_blank" rel="noopener">Open Host Link</a>
+          <span class="copy-status" id="create-host-copy-status" aria-live="polite"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Schedule Meeting</h2>
+        <button id="schedule-toggle-btn" type="button">Create Scheduled Meeting</button>
+        <div id="schedule-form" hidden>
+          <label>
+            Title
+            <input id="schedule-title" type="text" placeholder="Classroom Session" />
+          </label>
+          <label>
+            Date
+            <input id="schedule-date" type="date" />
+          </label>
+          <label>
+            Time
+            <input id="schedule-time" type="time" />
+          </label>
+          <label>
+            Duration (minutes)
+            <input id="schedule-duration" type="number" min="10" max="480" value="60" />
+          </label>
+          <label>
+            Password (optional)
+            <input id="schedule-password" type="password" placeholder="Meeting password" />
+          </label>
+          <label>
+            Created By (optional)
+            <input id="schedule-createdby" type="text" placeholder="Teacher / Host" />
+          </label>
+          <button id="create-scheduled-btn">Create Scheduled Link</button>
+          <pre id="schedule-output" hidden></pre>
+          <div class="link-block" id="schedule-links" hidden>
+            <label for="schedule-join-link">Guest Join Details</label>
+            <div class="link-row">
+              <textarea id="schedule-join-link" rows="4" readonly></textarea>
+              <button class="copy-btn" data-copy-target="schedule-join-link" data-status-target="schedule-join-copy-status">
+                <span class="copy-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H10V7h9v14z"/>
+                  </svg>
+                </span>
+                Copy Guest Link
+              </button>
+            </div>
+            <a id="schedule-join-open" class="link-open" href="#" target="_blank" rel="noopener">Open Guest Link</a>
+            <span class="copy-status" id="schedule-join-copy-status" aria-live="polite"></span>
+            <label for="schedule-host-link">Host Details</label>
+            <div class="link-row">
+              <textarea id="schedule-host-link" rows="4" readonly></textarea>
+              <button class="copy-btn" data-copy-target="schedule-host-link" data-status-target="schedule-host-copy-status">
+                <span class="copy-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1zm3 4H10a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H10V7h9v14z"/>
+                  </svg>
+                </span>
+                Copy Host Link
+              </button>
+            </div>
+            <a id="schedule-host-open" class="link-open" href="#" target="_blank" rel="noopener">Open Host Link</a>
+            <span class="copy-status" id="schedule-host-copy-status" aria-live="polite"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Join Meeting</h2>
+        <p>Use the join link generated above to open the join page.</p>
+      </section>
+
+      <footer>
+        <small>Phase 3 - AV layout and UX enhancements.</small>
+        <a class="admin-link" href="/meeting_app/admin/config.php">Admin</a>
+      </footer>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

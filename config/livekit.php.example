@@ -1,0 +1,7 @@
+<?php
+
+return [
+    'url' => 'ws://192.168.25.144:7880',
+    'api_key' => 'change_this_livekit_key',
+    'api_secret' => 'change_this_livekit_secret'
+];

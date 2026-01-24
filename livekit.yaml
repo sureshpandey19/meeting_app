@@ -1,0 +1,11 @@
+port: 7880
+bind_addresses:
+  - 0.0.0.0
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+
+keys:
+  09aa5a4558a5e3dd4109bae9: daf9370cc25f5b75abdf40a7609af09c15f0d97850c82411

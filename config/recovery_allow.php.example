@@ -1,0 +1,13 @@
+<?php
+
+return [
+    // Allowed IPs or CIDR ranges. Use '*' to allow any IP (not recommended).
+    'allowed_ips' => [
+        '127.0.0.1',
+        '::1'
+        // '192.168.25.0/24'
+    ],
+    // Optional recovery token hash (recommended if allowed_ips includes '*').
+    // Generate hash: php -r 'echo password_hash("your_recovery_token", PASSWORD_DEFAULT), PHP_EOL;'
+    'token_hash' => ''
+];

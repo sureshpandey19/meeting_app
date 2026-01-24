@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LiveKit Test Client</title>
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; }
+      label { display: block; margin-top: 12px; }
+      input, textarea { width: 100%; padding: 8px; }
+      button { margin-top: 12px; padding: 8px 12px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+      video { width: 100%; background: #111; }
+      .tile { border: 1px solid #ccc; padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>LiveKit Test Client</h1>
+    <label>LiveKit URL</label>
+    <input id="url" value="ws://192.168.25.144:7880" />
+
+    <label>Token</label>
+    <textarea id="token" rows="4" placeholder="Paste token here"></textarea>
+
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+
+    <div class="grid">
+      <div class="tile">
+        <strong>Local</strong>
+        <div id="local"></div>
+      </div>
+      <div class="tile">
+        <strong>Remote</strong>
+        <div id="remote"></div>
+      </div>
+    </div>
+
+    <script>
+      const { Room, RoomEvent, createLocalTracks } = LivekitClient;
+      const urlInput = document.getElementById("url");
+      const tokenInput = document.getElementById("token");
+      const connectBtn = document.getElementById("connect");
+      const disconnectBtn = document.getElementById("disconnect");
+      const localEl = document.getElementById("local");
+      const remoteEl = document.getElementById("remote");
+      let room;
+
+      function attachTrack(track, container) {
+        const element = track.attach();
+        container.appendChild(element);
+      }
+
+      function detachTrack(track, container) {
+        const elements = track.detach();
+        elements.forEach((el) => el.remove());
+      }
+
+      connectBtn.addEventListener("click", async () => {
+        const url = urlInput.value.trim();
+        const token = tokenInput.value.trim();
+        if (!url || !token) {
+          alert("URL and token are required.");
+          return;
+        }
+
+        room = new Room();
+        room
+          .on(RoomEvent.TrackSubscribed, (track) => attachTrack(track, remoteEl))
+          .on(RoomEvent.TrackUnsubscribed, (track) => detachTrack(track, remoteEl));
+
+        await room.connect(url, token);
+
+        const tracks = await createLocalTracks({ audio: true, video: true });
+        tracks.forEach((track) => {
+          room.localParticipant.publishTrack(track);
+          attachTrack(track, localEl);
+        });
+
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+      });
+
+      disconnectBtn.addEventListener("click", async () => {
+        if (!room) return;
+        room.localParticipant.tracks.forEach((pub) => {
+          if (pub.track) {
+            detachTrack(pub.track, localEl);
+            pub.track.stop();
+          }
+        });
+        await room.disconnect();
+        room = null;
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        localEl.innerHTML = "";
+        remoteEl.innerHTML = "";
+      });
+    </script>
+  </body>
+</html>
