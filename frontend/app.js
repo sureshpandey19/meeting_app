@@ -31,6 +31,8 @@ const avCameraBtn = document.getElementById("av-camera-btn");
 const avStatus = document.getElementById("av-status");
 const meetingTimer = document.getElementById("meeting-timer");
 const avLocal = document.getElementById("av-local");
+const avStage = document.querySelector(".av-stage");
+const avStrip = document.getElementById("av-strip");
 const avGrid = document.getElementById("av-grid");
 const avLocalTile = document.getElementById("av-local-tile");
 const avLocalName = document.getElementById("av-local-name");
@@ -46,6 +48,18 @@ const scheduleLinks = document.getElementById("schedule-links");
 const debugPanel = document.getElementById("debug-panel");
 const debugOutput = document.getElementById("debug-output");
 const debugToggleBtn = document.getElementById("debug-toggle-btn");
+const shareToggleBtn = document.getElementById("share-toggle-btn");
+const chatToggleBtn = document.getElementById("chat-toggle-btn");
+const chatPanel = document.getElementById("chat-panel");
+const chatMessages = document.getElementById("chat-messages");
+const chatForm = document.getElementById("chat-form");
+const chatInput = document.getElementById("chat-input");
+const chatSendBtn = document.getElementById("chat-send-btn");
+const chatCount = document.getElementById("chat-count");
+const chatStatus = document.getElementById("chat-status");
+const chatAttachBtn = document.getElementById("chat-attach-btn");
+const chatFileInput = document.getElementById("chat-file");
+const chatFileInfo = document.getElementById("chat-file-info");
 
 let meetingPoll = null;
 let participantsPoll = null;
@@ -56,6 +70,9 @@ let removedNoticeShown = false;
 let livekitRoom = null;
 let localAudioTrack = null;
 let localVideoTrack = null;
+let screenShareTrack = null;
+let screenShareTile = null;
+let screenShareMedia = null;
 let restoreAvState = null;
 let previewMode = false;
 let localPreviewAudioTrack = null;
@@ -70,6 +87,8 @@ let sidePanelPinned = false;
 const debugLines = [];
 let debugEnabled = false;
 let debugVisible = false;
+let chatUnreadCount = 0;
+let pendingChatFile = null;
 
 const STORAGE_KEY = "meeting_app_last_join";
  
@@ -78,6 +97,9 @@ if (scheduleLinks) scheduleLinks.hidden = true;
 updateAvGridLayout();
 window.addEventListener("resize", updateAvGridLayout);
 loadUiConfig();
+setChatEnabled(false);
+updateChatCount();
+setShareEnabled(false);
 
 function normalizeName(name) {
   return (name || "").trim().toLowerCase();
@@ -114,6 +136,194 @@ function setSidePanelVisible(visible, pinned) {
   window.requestAnimationFrame(updateAvGridLayout);
 }
 
+function setChatPanelVisible(visible, pinned) {
+  if (!chatPanel) return;
+  chatPanel.hidden = !visible;
+  if (visible) {
+    setSidePanelVisible(true, pinned ?? true);
+    chatUnreadCount = 0;
+    updateChatCount();
+  }
+}
+
+function updateChatCount() {
+  if (!chatCount) return;
+  chatCount.textContent = String(chatUnreadCount);
+}
+
+function appendChatMessage({ name, text, self }) {
+  if (!chatMessages) return;
+  const msg = document.createElement("div");
+  msg.className = `chat-message${self ? " self" : ""}`;
+  const meta = document.createElement("div");
+  meta.className = "chat-meta";
+  const label = document.createElement("span");
+  label.textContent = name || (self ? "You" : "Guest");
+  const time = document.createElement("span");
+  time.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  meta.append(label, time);
+  const body = document.createElement("div");
+  body.textContent = text;
+  msg.append(meta, body);
+  chatMessages.appendChild(msg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function clearChatMessages() {
+  if (chatMessages) {
+    chatMessages.textContent = "";
+  }
+  chatUnreadCount = 0;
+  updateChatCount();
+}
+
+function setChatEnabled(enabled) {
+  if (chatInput) chatInput.disabled = !enabled;
+  if (chatSendBtn) chatSendBtn.disabled = !enabled;
+  if (chatAttachBtn) chatAttachBtn.disabled = !enabled;
+  if (chatFileInput) chatFileInput.disabled = !enabled;
+  if (chatStatus) {
+    chatStatus.textContent = enabled ? "Chat is live." : "Chat is available after AV connects.";
+    chatStatus.hidden = enabled;
+  }
+}
+
+function isScreenShareTrack(publication, track) {
+  const source = (publication && publication.source) || (track && track.source) || "";
+  if (typeof source === "string") {
+    return source.toLowerCase().includes("screen");
+  }
+  if (window.LivekitClient && LivekitClient.Track && LivekitClient.Track.Source) {
+    return source === LivekitClient.Track.Source.ScreenShare;
+  }
+  return false;
+}
+
+function setShareButtonState(active) {
+  if (!shareToggleBtn) return;
+  shareToggleBtn.classList.toggle("is-active", active);
+  shareToggleBtn.setAttribute("aria-label", active ? "Stop screen share" : "Share screen");
+  shareToggleBtn.title = active ? "Stop screen share" : "Share screen";
+}
+
+function setShareEnabled(enabled) {
+  if (!shareToggleBtn) return;
+  shareToggleBtn.disabled = !enabled;
+  if (!enabled) {
+    setShareButtonState(false);
+  }
+}
+
+function updateChatFileInfo() {
+  if (!chatFileInfo) return;
+  if (!pendingChatFile) {
+    chatFileInfo.hidden = true;
+    chatFileInfo.textContent = "";
+    return;
+  }
+  chatFileInfo.hidden = false;
+  chatFileInfo.textContent = `Selected: ${pendingChatFile.name} (${Math.round(pendingChatFile.size / 1024)} KB)`;
+}
+
+function clearPendingChatFile() {
+  pendingChatFile = null;
+  if (chatFileInput) {
+    chatFileInput.value = "";
+  }
+  updateChatFileInfo();
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBlob(base64, mime) {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mime });
+}
+
+function appendChatFileMessage({ name, fileName, fileSize, fileUrl, mime, self }) {
+  if (!chatMessages) return;
+  const msg = document.createElement("div");
+  msg.className = `chat-message${self ? " self" : ""}`;
+  const meta = document.createElement("div");
+  meta.className = "chat-meta";
+  const label = document.createElement("span");
+  label.textContent = name || (self ? "You" : "Guest");
+  const time = document.createElement("span");
+  time.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  meta.append(label, time);
+
+  const body = document.createElement("div");
+  const link = document.createElement("a");
+  link.href = fileUrl;
+  link.textContent = `${fileName} (${Math.round(fileSize / 1024)} KB)`;
+  link.target = "_blank";
+  link.rel = "noopener";
+  body.appendChild(link);
+
+  if (mime && mime.startsWith("image/")) {
+    const img = document.createElement("img");
+    img.src = fileUrl;
+    img.alt = fileName;
+    img.style.maxWidth = "100%";
+    img.style.borderRadius = "8px";
+    img.style.marginTop = "6px";
+    body.appendChild(img);
+  }
+
+  msg.append(meta, body);
+  chatMessages.appendChild(msg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function sendChatFile(file, displayName) {
+  if (!livekitRoom || !file) return;
+  try {
+    if (file.size > 1024 * 1024) {
+      showToast("File too large (max 1MB).", true);
+      clearPendingChatFile();
+      return;
+    }
+    const buffer = await file.arrayBuffer();
+    const base64 = arrayBufferToBase64(buffer);
+    const payload = JSON.stringify({
+      type: "file",
+      name: file.name,
+      mime: file.type || "application/octet-stream",
+      size: file.size,
+      data: base64,
+      sender: displayName || "You"
+    });
+    const data = new TextEncoder().encode(payload);
+    livekitRoom.localParticipant.publishData(data, { reliable: true });
+    const blob = base64ToBlob(base64, file.type || "application/octet-stream");
+    const url = URL.createObjectURL(blob);
+    appendChatFileMessage({
+      name: "You",
+      fileName: file.name,
+      fileSize: file.size,
+      fileUrl: url,
+      mime: file.type || "application/octet-stream",
+      self: true
+    });
+    clearPendingChatFile();
+  } catch (err) {
+    showToast("Unable to send file.", true);
+  }
+}
+
 function logDebug(message) {
   if (!debugEnabled || !debugPanel || !debugOutput) return;
   const stamp = new Date().toISOString().slice(11, 19);
@@ -143,23 +353,103 @@ function setTileStatusIcons(tile, micOn, camOn) {
 }
 
 function updateAvGridLayout() {
-  if (!avGrid) return;
-  const tiles = avGrid.querySelectorAll(".av-tile");
-  const count = tiles.length;
-  const stage = document.querySelector(".av-stage");
-  if (!stage) return;
+  if (!avGrid || !avStage) return;
+  const hasShare = syncShareTiles();
+  const gridTiles = Array.from(avGrid.querySelectorAll(".av-tile")).filter((tile) => !tile.hidden);
+  const stripTiles = avStrip
+    ? Array.from(avStrip.querySelectorAll(".av-tile")).filter((tile) => !tile.hidden)
+    : [];
+  const allTiles = gridTiles.concat(stripTiles);
   const gap = 12;
   const padding = 8 * 2;
+
+  if (hasShare) {
+    syncShareAvailability(true);
+    if (avStage) avStage.classList.add("has-share");
+    avGrid.classList.add("screen-share");
+    if (avStrip) avStrip.hidden = false;
+    const stripCount = allTiles.filter((tile) => !tile.classList.contains("av-tile-share")).length || 1;
+    const stripHeight = 120;
+    if (avStage) {
+      avStage.style.setProperty("--share-strip-height", `${stripHeight}px`);
+      const available = Math.max(0, avStage.clientWidth - padding - gap * (stripCount - 1));
+      const tileSize = Math.max(90, Math.min(140, Math.floor(available / stripCount)));
+      avStage.style.setProperty("--strip-tile-size", `${tileSize}px`);
+    }
+    const mediaMin = Math.max(200, avStage.clientHeight - stripHeight - padding - gap);
+    avGrid.style.setProperty("--tile-media-min", `${mediaMin}px`);
+    return;
+  }
+
+  syncShareAvailability(false);
+  if (avStage) {
+    avStage.classList.remove("has-share");
+    avStage.style.removeProperty("--share-strip-height");
+    avStage.style.removeProperty("--strip-tile-size");
+  }
+  avGrid.classList.remove("screen-share");
+  if (avStrip) {
+    avStrip.hidden = true;
+  }
+  const count = allTiles.length;
   const minTile = 220;
   const gridWidth = Math.max(0, avGrid.clientWidth - padding);
   const maxCols = Math.max(1, Math.floor((gridWidth + gap) / (minTile + gap)));
   const cols = Math.max(1, Math.min(count || 1, maxCols));
   avGrid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   const rows = Math.max(1, Math.ceil(count / cols));
-  const stageHeight = stage.clientHeight;
+  const stageHeight = avStage.clientHeight;
   const tileHeight = Math.floor((stageHeight - padding - gap * (rows - 1)) / rows);
   const mediaMin = Math.max(120, tileHeight - 64);
   avGrid.style.setProperty("--tile-media-min", `${mediaMin}px`);
+}
+
+function syncShareAvailability(hasShare) {
+  if (!shareToggleBtn) return;
+  if (hasShare && !screenShareTrack) {
+    shareToggleBtn.disabled = true;
+    shareToggleBtn.title = "Another participant is sharing.";
+  } else {
+    shareToggleBtn.disabled = !livekitRoom;
+    if (!shareToggleBtn.disabled) {
+      shareToggleBtn.title = shareToggleBtn.classList.contains("is-active")
+        ? "Stop screen share"
+        : "Share screen";
+    } else {
+      shareToggleBtn.title = "";
+    }
+  }
+}
+
+function syncShareTiles() {
+  if (!avGrid) return false;
+  const gridTiles = Array.from(avGrid.querySelectorAll(".av-tile"));
+  const stripTiles = avStrip ? Array.from(avStrip.querySelectorAll(".av-tile")) : [];
+  const allTiles = gridTiles.concat(stripTiles);
+  const shareTiles = allTiles.filter((tile) => tile.classList.contains("av-tile-share"));
+  const hasShare = shareTiles.length > 0;
+
+  if (hasShare) {
+    if (avStrip) avStrip.hidden = false;
+    allTiles.forEach((tile) => {
+      if (tile.classList.contains("av-tile-share")) {
+        if (tile.parentElement !== avGrid) {
+          avGrid.appendChild(tile);
+        }
+      } else if (avStrip && tile.parentElement !== avStrip) {
+        avStrip.appendChild(tile);
+      }
+    });
+  } else {
+    if (avStrip) avStrip.hidden = true;
+    allTiles.forEach((tile) => {
+      if (tile.parentElement !== avGrid) {
+        avGrid.appendChild(tile);
+      }
+    });
+  }
+
+  return hasShare;
 }
 
 async function loadUiConfig() {
@@ -390,9 +680,10 @@ function updateLocalName(displayName) {
   if (avLocalPlaceholder) avLocalPlaceholder.textContent = label;
 }
 
-function getParticipantKey(participant) {
-  if (!participant) return "unknown";
-  return participant.sid || participant.identity || participant.name || "unknown";
+function getParticipantKey(participant, type = "camera") {
+  if (!participant) return `unknown:${type}`;
+  const base = participant.sid || participant.identity || participant.name || "unknown";
+  return `${base}:${type}`;
 }
 
 function getParticipantLabel(participant) {
@@ -400,14 +691,14 @@ function getParticipantLabel(participant) {
   return formatDisplayName(participant.name || participant.identity || "Participant");
 }
 
-function getOrCreateRemoteTile(participant) {
+function getOrCreateRemoteTile(participant, type = "camera") {
   if (!avGrid || !participant) return null;
-  const key = getParticipantKey(participant);
+  const key = getParticipantKey(participant, type);
   if (remoteTiles.has(key)) {
     return remoteTiles.get(key);
   }
   const tile = document.createElement("div");
-  tile.className = "av-tile";
+  tile.className = type === "screen" ? "av-tile av-tile-share" : "av-tile";
   tile.dataset.participant = key;
   tile.innerHTML = `
     <div class="av-tile-header">
@@ -431,7 +722,8 @@ function getOrCreateRemoteTile(participant) {
       <div class="av-name-placeholder"></div>
     </div>
   `;
-  const name = getParticipantLabel(participant);
+  const nameBase = getParticipantLabel(participant);
+  const name = type === "screen" ? `${nameBase} (Screen)` : nameBase;
   const nameEl = tile.querySelector(".av-name");
   const overlayEl = tile.querySelector(".av-name-overlay");
   const placeholderEl = tile.querySelector(".av-name-placeholder");
@@ -442,14 +734,20 @@ function getOrCreateRemoteTile(participant) {
   const media = tile.querySelector(".av-media-track");
   avGrid.appendChild(tile);
   updateAvGridLayout();
-  const info = { key, tile, media, participant };
+  const info = { key, tile, media, participant, type };
   remoteTiles.set(key, info);
   return info;
 }
 
+function getRemoteTile(participant, type = "camera") {
+  if (!participant) return null;
+  const key = getParticipantKey(participant, type);
+  return remoteTiles.get(key) || null;
+}
+
 function updateRemoteTileState(participant) {
   if (!participant) return;
-  const key = getParticipantKey(participant);
+  const key = getParticipantKey(participant, "camera");
   const info = remoteTiles.get(key);
   if (!info) return;
   let micOn = false;
@@ -466,7 +764,9 @@ function updateRemoteTileState(participant) {
   if (videoTracks && typeof videoTracks.forEach === "function") {
     videoTracks.forEach((pub) => {
       if (pub && pub.track) {
-        camOn = true;
+        if (!isScreenShareTrack(pub, pub.track)) {
+          camOn = true;
+        }
       }
     });
   }
@@ -479,7 +779,7 @@ function updateRemoteTileState(participant) {
         if (kind === "audio" && pub && pub.track) {
           micOn = true;
         }
-        if (kind === "video" && pub && pub.track) {
+        if (kind === "video" && pub && pub.track && !isScreenShareTrack(pub, pub.track)) {
           camOn = true;
         }
       });
@@ -495,13 +795,16 @@ function updateRemoteTileState(participant) {
   setTileStatusIcons(info.tile, micOn, camOn);
 }
 
-function removeRemoteTile(participant) {
+function removeRemoteTile(participant, type) {
   if (!participant) return;
-  const key = getParticipantKey(participant);
-  const info = remoteTiles.get(key);
-  if (!info) return;
-  info.tile.remove();
-  remoteTiles.delete(key);
+  const types = type ? [type] : ["camera", "screen"];
+  types.forEach((t) => {
+    const key = getParticipantKey(participant, t);
+    const info = remoteTiles.get(key);
+    if (!info) return;
+    info.tile.remove();
+    remoteTiles.delete(key);
+  });
   updateAvGridLayout();
 }
 
@@ -510,6 +813,44 @@ function clearRemoteTiles() {
     info.tile.remove();
   });
   remoteTiles.clear();
+  updateAvGridLayout();
+}
+
+function ensureScreenShareTile() {
+  if (!avGrid || screenShareTile) return;
+  const tile = document.createElement("div");
+  tile.className = "av-tile av-tile-share";
+  tile.dataset.participant = "local:screen";
+  tile.innerHTML = `
+    <div class="av-tile-header">
+      <span class="av-name">You (Screen)</span>
+    </div>
+    <div class="av-media">
+      <div class="av-media-track"></div>
+      <div class="av-name-overlay">You (Screen)</div>
+      <div class="av-name-placeholder">You (Screen)</div>
+    </div>
+  `;
+  screenShareTile = tile;
+  screenShareMedia = tile.querySelector(".av-media-track");
+  avGrid.appendChild(tile);
+  updateAvGridLayout();
+}
+
+function clearScreenShareTile() {
+  if (screenShareTrack && screenShareMedia) {
+    detachTrack(screenShareTrack, screenShareMedia);
+  }
+  if (screenShareTile) {
+    screenShareTile.remove();
+  }
+  screenShareTile = null;
+  screenShareMedia = null;
+  updateAvGridLayout();
+}
+
+function updateScreenShareLayout() {
+  if (!avGrid) return;
   updateAvGridLayout();
 }
 
@@ -638,12 +979,18 @@ async function leaveLiveKit() {
   } finally {
     clearMediaContainer(avLocal);
     clearRemoteTiles();
+    await stopScreenShare();
     setTileVideoState(avLocalTile, false);
     stopPreviewTracks();
     previewMode = false;
     localAudioTrack = null;
     localVideoTrack = null;
     resetAvToggles();
+    setChatEnabled(false);
+    setShareEnabled(false);
+    clearChatMessages();
+    clearPendingChatFile();
+    setChatPanelVisible(false, false);
   }
 }
 
@@ -699,37 +1046,76 @@ async function joinLiveKit(meetingId) {
           publication.setSubscribed(true);
         }
       })
-      .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+      .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (participant && participant.isLocal) {
           return;
         }
+        const isScreen = isScreenShareTrack(publication, track);
         logDebug(`track subscribed ${track.kind} from ${participant && (participant.name || participant.identity || "?")}`);
-        const info = getOrCreateRemoteTile(participant);
+        const info = getOrCreateRemoteTile(participant, isScreen ? "screen" : "camera");
         if (info && info.media) {
           attachTrack(track, info.media);
           if (track && track.kind === "video") {
             setTileVideoState(info.tile, true);
           }
-          updateRemoteTileState(participant);
+          if (!isScreen) {
+            updateRemoteTileState(participant);
+          }
         }
       })
-      .on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
+      .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
         if (participant && participant.isLocal) {
           return;
         }
+        const isScreen = isScreenShareTrack(publication, track);
         logDebug(`track unsubscribed ${track.kind} from ${participant && (participant.name || participant.identity || "?")}`);
-        const info = getOrCreateRemoteTile(participant);
+        const info = getRemoteTile(participant, isScreen ? "screen" : "camera");
         if (info && info.media) {
           detachTrack(track, info.media);
           if (track && track.kind === "video") {
             setTileVideoState(info.tile, false);
           }
-          updateRemoteTileState(participant);
+          if (isScreen) {
+            removeRemoteTile(participant, "screen");
+          } else {
+            updateRemoteTileState(participant);
+          }
         }
       })
       .on(RoomEvent.ParticipantDisconnected, (participant) => {
         logDebug(`participant disconnected ${participant && (participant.name || participant.identity || "?")}`);
         removeRemoteTile(participant);
+      })
+      .on(RoomEvent.DataReceived, (payload, participant) => {
+        try {
+          const text = new TextDecoder().decode(payload);
+          const data = JSON.parse(text);
+          if (data && data.type === "chat") {
+            const name = data.name || (participant && (participant.name || participant.identity)) || "Guest";
+            appendChatMessage({ name, text: data.text || "", self: false });
+            if (chatPanel && chatPanel.hidden) {
+              chatUnreadCount += 1;
+              updateChatCount();
+              showToast("New chat message.", false);
+            }
+          }
+          if (data && data.type === "file") {
+            const name = data.sender || (participant && (participant.name || participant.identity)) || "Guest";
+            const fileName = data.name || "file";
+            const fileSize = Number(data.size) || 0;
+            const mime = data.mime || "application/octet-stream";
+            const blob = base64ToBlob(data.data || "", mime);
+            const url = URL.createObjectURL(blob);
+            appendChatFileMessage({ name, fileName, fileSize, fileUrl: url, mime, self: false });
+            if (chatPanel && chatPanel.hidden) {
+              chatUnreadCount += 1;
+              updateChatCount();
+              showToast("New file received.", false);
+            }
+          }
+        } catch (_err) {
+          return;
+        }
       });
 
     await livekitRoom.connect(data.url, data.token);
@@ -739,13 +1125,16 @@ async function joinLiveKit(meetingId) {
       remoteParticipants.forEach((participant) => {
         const remoteTracks = participant ? participant.tracks : null;
         if (remoteTracks && typeof remoteTracks.forEach === "function") {
-          const info = getOrCreateRemoteTile(participant);
           remoteTracks.forEach((pub) => {
             if (pub && typeof pub.setSubscribed === "function") {
               pub.setSubscribed(true);
             }
-            if (pub && pub.track && info && info.media) {
-              attachTrack(pub.track, info.media);
+            if (pub && pub.track) {
+              const isScreen = isScreenShareTrack(pub, pub.track);
+              const info = getOrCreateRemoteTile(participant, isScreen ? "screen" : "camera");
+              if (info && info.media) {
+                attachTrack(pub.track, info.media);
+              }
             }
           });
           updateRemoteTileState(participant);
@@ -766,6 +1155,9 @@ async function joinLiveKit(meetingId) {
     setTileToggleState(avTileMic, false);
     setTileToggleState(avTileCamera, false);
     setAvStatus("AV connected. Mic and camera are off.", false);
+    setShareButtonState(false);
+    setChatEnabled(true);
+    setShareEnabled(true);
     if (restoreAvState) {
       if (restoreAvState.micOn) {
         await toggleMicrophone();
@@ -911,6 +1303,78 @@ async function toggleCamera() {
     }
   } catch (err) {
     setAvStatus(`Camera error: ${err.message}`, true);
+  }
+}
+
+async function stopScreenShare() {
+  if (!screenShareTrack || !livekitRoom) {
+    clearScreenShareTile();
+    screenShareTrack = null;
+    setShareButtonState(false);
+    if (avLocalTile) {
+      avLocalTile.hidden = false;
+    }
+    return;
+  }
+  try {
+    livekitRoom.localParticipant.unpublishTrack(screenShareTrack);
+  } catch (_err) {
+    // ignore
+  }
+  if (screenShareMedia) {
+    detachTrack(screenShareTrack, screenShareMedia);
+  }
+  screenShareTrack.stop();
+  screenShareTrack = null;
+  clearScreenShareTile();
+  setShareButtonState(false);
+  setAvStatus("Screen share stopped.", false);
+  if (avLocalTile) {
+    avLocalTile.hidden = false;
+  }
+}
+
+async function toggleScreenShare() {
+  try {
+    if (!livekitRoom) {
+      setAvStatus("AV is not connected.", true);
+      return;
+    }
+    if (screenShareTrack) {
+      await stopScreenShare();
+      return;
+    }
+    const { createLocalScreenTracks } = LivekitClient;
+    if (!createLocalScreenTracks) {
+      setAvStatus("Screen share not supported.", true);
+      return;
+    }
+    const tracks = await createLocalScreenTracks({ audio: false });
+    const videoTrack = tracks.find((t) => t.kind === "video") || tracks[0];
+    if (!videoTrack) {
+      setAvStatus("Unable to start screen share.", true);
+      return;
+    }
+    screenShareTrack = videoTrack;
+    ensureScreenShareTile();
+    if (screenShareMedia) {
+      attachTrack(screenShareTrack, screenShareMedia);
+      setTileVideoState(screenShareTile, true);
+    }
+    if (avLocalTile) {
+      avLocalTile.hidden = true;
+    }
+    livekitRoom.localParticipant.publishTrack(screenShareTrack);
+    setShareButtonState(true);
+    setAvStatus("Screen share started.", false);
+    const mediaTrack = screenShareTrack.mediaStreamTrack;
+    if (mediaTrack) {
+      mediaTrack.onended = () => {
+        stopScreenShare();
+      };
+    }
+  } catch (err) {
+    setAvStatus(`Screen share error: ${err.message}`, true);
   }
 }
 
@@ -1667,6 +2131,77 @@ if (debugToggleBtn) {
     if (!debugEnabled) return;
     debugVisible = !debugVisible;
     renderDebugPanel();
+  });
+}
+
+if (shareToggleBtn) {
+  shareToggleBtn.addEventListener("click", async () => {
+    await toggleScreenShare();
+  });
+}
+
+if (chatToggleBtn) {
+  chatToggleBtn.addEventListener("click", () => {
+    if (!chatPanel) return;
+    const show = chatPanel.hidden;
+    setChatPanelVisible(show, true);
+    if (show && !livekitRoom) {
+      showToast("Chat will work after AV connects.", false);
+    }
+  });
+}
+
+if (chatForm) {
+  chatForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!livekitRoom || !chatInput) return;
+    const text = chatInput.value.trim();
+    const displayName = document.getElementById("join-display")
+      ? document.getElementById("join-display").value.trim()
+      : "You";
+    let sentSomething = false;
+    if (text) {
+      const payload = JSON.stringify({ type: "chat", text, name: displayName || "You" });
+      try {
+        const data = new TextEncoder().encode(payload);
+        livekitRoom.localParticipant.publishData(data, { reliable: true });
+        appendChatMessage({ name: "You", text, self: true });
+        chatInput.value = "";
+        sentSomething = true;
+      } catch (err) {
+        showToast("Unable to send chat.", true);
+      }
+    }
+    if (pendingChatFile) {
+      sendChatFile(pendingChatFile, displayName || "You");
+      sentSomething = true;
+    }
+    if (!sentSomething) {
+      showToast("Type a message or attach a file.", true);
+    }
+  });
+}
+
+if (chatAttachBtn && chatFileInput) {
+  chatAttachBtn.addEventListener("click", () => {
+    chatFileInput.click();
+  });
+}
+
+if (chatFileInput) {
+  chatFileInput.addEventListener("change", () => {
+    const file = chatFileInput.files && chatFileInput.files[0];
+    if (!file) {
+      clearPendingChatFile();
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      showToast("File too large (max 1MB).", true);
+      clearPendingChatFile();
+      return;
+    }
+    pendingChatFile = file;
+    updateChatFileInfo();
   });
 }
 

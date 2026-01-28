@@ -147,6 +147,16 @@ Updates (2026-01-24)
 - Separate host/guest link fields with copy + open links; hidden until generated.
 - LiveKit debug toggle added in admin UI (optional, off by default).
 
+Planned (Phase 3)
+- TBD.
+
+Updates (2026-01-28)
+- Screen sharing for local and remote participants with dedicated screen tiles.
+- In-meeting chat window using LiveKit data messages.
+- Screen share layout: shared screen becomes main view with top strip tiles.
+- Chat file sharing (<=1MB) via LiveKit data messages.
+- Screen share UI: compact icon controls over AV stage and single-share enforcement.
+
 Phase 4 - Collaboration, Admin, and AI Assist
 Status: Planned
 Goals
