@@ -157,6 +157,15 @@ Updates (2026-01-28)
 - Chat file sharing (<=1MB) via LiveKit data messages.
 - Screen share UI: compact icon controls over AV stage and single-share enforcement.
 
+Updates (2026-02-01)
+- Full-screen in-meeting layout: remove card framing, stretch AV stage to viewport.
+- Bottom-center control bar for meeting actions; mic/cam controls restored there only.
+- Side panel now docks on the right and resizes AV area instead of overlay/crop.
+- Screen share tile uses object-fit: contain to avoid cropping.
+- Waiting/AV status displayed as an overlay in meeting view.
+- Tile UI cleanup: name/status overlays repositioned to avoid overlap; per-tile mic/cam icons removed.
+- Remote tile reconciliation to reduce missing/duplicate tiles across clients.
+
 Phase 4 - Collaboration, Admin, and AI Assist
 Status: Planned
 Goals

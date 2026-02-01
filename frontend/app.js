@@ -60,6 +60,7 @@ const chatStatus = document.getElementById("chat-status");
 const chatAttachBtn = document.getElementById("chat-attach-btn");
 const chatFileInput = document.getElementById("chat-file");
 const chatFileInfo = document.getElementById("chat-file-info");
+const themeToggleBtn = document.getElementById("theme-toggle-btn");
 
 let meetingPoll = null;
 let participantsPoll = null;
@@ -91,7 +92,8 @@ let chatUnreadCount = 0;
 let pendingChatFile = null;
 
 const STORAGE_KEY = "meeting_app_last_join";
- 
+const THEME_KEY = "meeting_app_theme";
+
 if (createLinks) createLinks.hidden = true;
 if (scheduleLinks) scheduleLinks.hidden = true;
 updateAvGridLayout();
@@ -100,6 +102,30 @@ loadUiConfig();
 setChatEnabled(false);
 updateChatCount();
 setShareEnabled(false);
+if (themeToggleBtn) {
+  applySavedTheme();
+}
+
+function applyTheme(theme) {
+  const useDark = theme === "dark";
+  document.body.classList.toggle("theme-dark", useDark);
+  if (themeToggleBtn) {
+    themeToggleBtn.textContent = useDark ? "Theme: Dark" : "Theme: Default";
+  }
+}
+
+function applySavedTheme() {
+  const stored = localStorage.getItem(THEME_KEY) || "default";
+  applyTheme(stored === "dark" ? "dark" : "default");
+}
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener("click", () => {
+    const nextTheme = document.body.classList.contains("theme-dark") ? "default" : "dark";
+    localStorage.setItem(THEME_KEY, nextTheme);
+    applyTheme(nextTheme);
+  });
+}
 
 function normalizeName(name) {
   return (name || "").trim().toLowerCase();
@@ -430,6 +456,9 @@ function syncShareTiles() {
   const hasShare = shareTiles.length > 0;
 
   if (hasShare) {
+    if (!screenShareTrack && avLocalTile) {
+      avLocalTile.hidden = false;
+    }
     if (avStrip) avStrip.hidden = false;
     allTiles.forEach((tile) => {
       if (tile.classList.contains("av-tile-share")) {
@@ -614,6 +643,15 @@ function setTileToggleState(button, isOn) {
   button.setAttribute("aria-pressed", isOn ? "true" : "false");
 }
 
+function syncStageControls() {
+  if (avMicBtn) {
+    avMicBtn.classList.toggle("is-active", avTileMic && avTileMic.classList.contains("is-active"));
+  }
+  if (avCameraBtn) {
+    avCameraBtn.classList.toggle("is-active", avTileCamera && avTileCamera.classList.contains("is-active"));
+  }
+}
+
 function setTileControlsEnabled(enabled) {
   if (avTileMic) avTileMic.disabled = !enabled;
   if (avTileCamera) avTileCamera.disabled = !enabled;
@@ -632,6 +670,7 @@ function resetAvToggles() {
     avLocalTile.classList.remove("has-video");
     setTileStatusIcons(avLocalTile, false, false);
   }
+  syncStageControls();
 }
 
 function stopPreviewTracks() {
@@ -745,6 +784,59 @@ function getRemoteTile(participant, type = "camera") {
   return remoteTiles.get(key) || null;
 }
 
+function reconcileRemoteParticipants() {
+  if (!livekitRoom || !avGrid) return;
+  const remotes = livekitRoom.remoteParticipants;
+  if (!remotes || typeof remotes.forEach !== "function") return;
+  const allowedKeys = new Set();
+  remotes.forEach((participant) => {
+    if (!participant) return;
+    allowedKeys.add(getParticipantKey(participant, "camera"));
+    const info = getOrCreateRemoteTile(participant);
+    if (!info || !info.media) return;
+    const pubs = [];
+    const videoTracks = participant.videoTracks;
+    const audioTracks = participant.audioTracks;
+    if (videoTracks && typeof videoTracks.forEach === "function") {
+      videoTracks.forEach((pub) => pubs.push(pub));
+    }
+    if (audioTracks && typeof audioTracks.forEach === "function") {
+      audioTracks.forEach((pub) => pubs.push(pub));
+    }
+    if (pubs.length === 0 && participant.tracks && typeof participant.tracks.forEach === "function") {
+      participant.tracks.forEach((pub) => pubs.push(pub));
+    }
+    pubs.forEach((pub) => {
+      if (!pub || !pub.track) return;
+      const kind = pub.track.kind || pub.kind;
+      if (kind === "video" && !info.media.querySelector("video")) {
+        if (!isScreenShareTrack(pub, pub.track)) {
+          attachTrack(pub.track, info.media);
+          setTileVideoState(info.tile, true);
+        } else {
+          allowedKeys.add(getParticipantKey(participant, "screen"));
+        }
+      }
+      if (kind === "audio" && !info.media.querySelector("audio")) {
+        attachTrack(pub.track, info.media);
+      }
+      if (isScreenShareTrack(pub, pub.track)) {
+        allowedKeys.add(getParticipantKey(participant, "screen"));
+      }
+    });
+    updateRemoteTileState(participant);
+  });
+  const staleKeys = [];
+  remoteTiles.forEach((info, key) => {
+    if (!allowedKeys.has(key)) {
+      info.tile.remove();
+      staleKeys.push(key);
+    }
+  });
+  staleKeys.forEach((key) => remoteTiles.delete(key));
+  updateAvGridLayout();
+}
+
 function updateRemoteTileState(participant) {
   if (!participant) return;
   const key = getParticipantKey(participant, "camera");
@@ -752,6 +844,7 @@ function updateRemoteTileState(participant) {
   if (!info) return;
   let micOn = false;
   let camOn = false;
+  let videoTrack = null;
   const audioTracks = participant.audioTracks;
   const videoTracks = participant.videoTracks;
   if (audioTracks && typeof audioTracks.forEach === "function") {
@@ -766,6 +859,9 @@ function updateRemoteTileState(participant) {
       if (pub && pub.track) {
         if (!isScreenShareTrack(pub, pub.track)) {
           camOn = true;
+          if (!videoTrack) {
+            videoTrack = pub.track;
+          }
         }
       }
     });
@@ -781,6 +877,9 @@ function updateRemoteTileState(participant) {
         }
         if (kind === "video" && pub && pub.track && !isScreenShareTrack(pub, pub.track)) {
           camOn = true;
+          if (!videoTrack) {
+            videoTrack = pub.track;
+          }
         }
       });
     }
@@ -790,6 +889,9 @@ function updateRemoteTileState(participant) {
   }
   if (!micOn && info.media) {
     micOn = !!info.media.querySelector("audio");
+  }
+  if (videoTrack && info.media && !info.media.querySelector("video")) {
+    attachTrack(videoTrack, info.media);
   }
   setTileVideoState(info.tile, camOn);
   setTileStatusIcons(info.tile, micOn, camOn);
@@ -1036,6 +1138,7 @@ async function joinLiveKit(meetingId) {
         if (info) {
           updateRemoteTileState(participant);
         }
+        setTimeout(reconcileRemoteParticipants, 0);
       })
       .on(RoomEvent.TrackPublished, (publication, participant) => {
         if (!participant || participant.isLocal || !publication) {
@@ -1045,6 +1148,7 @@ async function joinLiveKit(meetingId) {
         if (typeof publication.setSubscribed === "function") {
           publication.setSubscribed(true);
         }
+        setTimeout(reconcileRemoteParticipants, 0);
       })
       .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (participant && participant.isLocal) {
@@ -1062,6 +1166,7 @@ async function joinLiveKit(meetingId) {
             updateRemoteTileState(participant);
           }
         }
+        setTimeout(reconcileRemoteParticipants, 0);
       })
       .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
         if (participant && participant.isLocal) {
@@ -1081,6 +1186,7 @@ async function joinLiveKit(meetingId) {
             updateRemoteTileState(participant);
           }
         }
+        setTimeout(reconcileRemoteParticipants, 0);
       })
       .on(RoomEvent.ParticipantDisconnected, (participant) => {
         logDebug(`participant disconnected ${participant && (participant.name || participant.identity || "?")}`);
@@ -1134,6 +1240,9 @@ async function joinLiveKit(meetingId) {
               const info = getOrCreateRemoteTile(participant, isScreen ? "screen" : "camera");
               if (info && info.media) {
                 attachTrack(pub.track, info.media);
+                if (!isScreen && pub.track.kind === "video") {
+                  setTileVideoState(info.tile, true);
+                }
               }
             }
           });
@@ -1154,6 +1263,7 @@ async function joinLiveKit(meetingId) {
     setAvToggleState(avCameraBtn, false, "Camera");
     setTileToggleState(avTileMic, false);
     setTileToggleState(avTileCamera, false);
+    syncStageControls();
     setAvStatus("AV connected. Mic and camera are off.", false);
     setShareButtonState(false);
     setChatEnabled(true);
@@ -1189,6 +1299,7 @@ async function toggleMicrophone() {
         localPreviewAudioTrack = null;
         setAvToggleState(avMicBtn, false, "Mic");
         setTileToggleState(avTileMic, false);
+        syncStageControls();
         syncAvStatus();
         const stored = loadStoredJoin();
         if (stored) {
@@ -1201,6 +1312,7 @@ async function toggleMicrophone() {
       attachTrack(localPreviewAudioTrack, avLocal);
       setAvToggleState(avMicBtn, true, "Mic");
       setTileToggleState(avTileMic, true);
+      syncStageControls();
       syncAvStatus();
       const stored = loadStoredJoin();
       if (stored) {
@@ -1215,6 +1327,7 @@ async function toggleMicrophone() {
       localAudioTrack = null;
       setAvToggleState(avMicBtn, false, "Mic");
       setTileToggleState(avTileMic, false);
+      syncStageControls();
       syncAvStatus();
       const stored = loadStoredJoin();
       if (stored) {
@@ -1228,6 +1341,7 @@ async function toggleMicrophone() {
     attachTrack(localAudioTrack, avLocal);
     setAvToggleState(avMicBtn, true, "Mic");
     setTileToggleState(avTileMic, true);
+    syncStageControls();
     syncAvStatus();
     const stored = loadStoredJoin();
     if (stored) {
@@ -1253,6 +1367,7 @@ async function toggleCamera() {
         setAvToggleState(avCameraBtn, false, "Camera");
         setTileToggleState(avTileCamera, false);
         setTileVideoState(avLocalTile, false);
+        syncStageControls();
         syncAvStatus();
         const stored = loadStoredJoin();
         if (stored) {
@@ -1266,6 +1381,7 @@ async function toggleCamera() {
       setAvToggleState(avCameraBtn, true, "Camera");
       setTileToggleState(avTileCamera, true);
       setTileVideoState(avLocalTile, true);
+      syncStageControls();
       syncAvStatus();
       const stored = loadStoredJoin();
       if (stored) {
@@ -1282,6 +1398,7 @@ async function toggleCamera() {
       setAvToggleState(avCameraBtn, false, "Camera");
       setTileToggleState(avTileCamera, false);
       setTileVideoState(avLocalTile, false);
+      syncStageControls();
       syncAvStatus();
       const stored = loadStoredJoin();
       if (stored) {
@@ -1296,6 +1413,7 @@ async function toggleCamera() {
     setAvToggleState(avCameraBtn, true, "Camera");
     setTileToggleState(avTileCamera, true);
     setTileVideoState(avLocalTile, true);
+    syncStageControls();
     syncAvStatus();
     const stored = loadStoredJoin();
     if (stored) {
@@ -1682,11 +1800,7 @@ async function handleJoin(isAuto) {
     const isPending = approvalStatus === "pending";
     output.textContent = isPending ? "Request sent. Waiting for host approval." : `Joined meeting ${data.meeting_id}.`;
     setJoinFormVisibility(false);
-    if (!isPending) {
-      document.body.classList.add("in-meeting");
-    } else {
-      document.body.classList.remove("in-meeting");
-    }
+    document.body.classList.add("in-meeting");
     updateJoinSummary(meetingId, displayName, data.is_host);
     updateLocalName(displayName);
     if (data.is_host) {
@@ -1889,7 +2003,7 @@ async function checkSelfStatus(meetingId) {
     const approvalStatus = data.approval_status || "approved";
     if (approvalStatus === "pending") {
       output.textContent = "Waiting for host approval.";
-      document.body.classList.remove("in-meeting");
+      document.body.classList.add("in-meeting");
       if (avPanel) {
         avPanel.hidden = false;
         setAvStatus("Waiting for host approval. You can preview your mic/camera.", false);

@@ -55,6 +55,11 @@
   --success: #166534;
   --danger: #9b1c1c;
   --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  --meeting-bg: #f2f4f8;
+  --meeting-surface: #0b1120;
+  --meeting-text: #f8fafc;
+  --toggle-bg: rgba(15, 23, 42, 0.8);
+  --toggle-border: rgba(148, 163, 184, 0.35);
 }
 
 body {
@@ -63,6 +68,26 @@ body {
   color: var(--text);
   margin: 0;
   padding: 0;
+}
+
+body.theme-dark {
+  color-scheme: dark;
+  --bg: #0b1120;
+  --bg-accent: #111827;
+  --card: #0f172a;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --border: #1f2937;
+  --accent: #38bdf8;
+  --accent-dark: #0ea5e9;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --shadow: 0 18px 40px rgba(2, 6, 23, 0.55);
+  --meeting-bg: #020617;
+  --meeting-surface: #020617;
+  --meeting-text: #f8fafc;
+  --toggle-bg: rgba(2, 6, 23, 0.85);
+  --toggle-border: rgba(148, 163, 184, 0.4);
 }
 
 [hidden] {
@@ -86,7 +111,6 @@ body.in-meeting .container {
 body.in-meeting h1,
 body.in-meeting #host-banner,
 body.in-meeting #join-summary,
-body.in-meeting #av-status,
 body.in-meeting #join-output {
   display: none;
 }
@@ -96,6 +120,171 @@ body.in-meeting .av-header h3 {
 }
 
 body.in-meeting .av-tile-header {
+  display: none;
+}
+
+body.in-meeting {
+  background: var(--meeting-surface);
+  overflow: hidden;
+}
+
+body.in-meeting .container {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body.in-meeting .card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+body.in-meeting .meeting-layout {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "main";
+  gap: 0;
+  height: 100vh;
+  position: relative;
+}
+
+body.in-meeting .meeting-main {
+  height: 100%;
+}
+
+body.in-meeting .meeting-side {
+  position: relative;
+  width: 320px;
+  height: 100%;
+  overflow: auto;
+  background: rgba(2, 6, 23, 0.75);
+  border-left: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 12px;
+  backdrop-filter: blur(10px);
+  z-index: 6;
+}
+
+body.in-meeting .meeting-layout.hide-side .meeting-side {
+  display: none;
+}
+
+body.in-meeting .meeting-layout:not(.hide-side) {
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas: "main side";
+}
+
+body.in-meeting .av-panel {
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+body.in-meeting .av-stage {
+  height: 100%;
+  border-radius: 0;
+  border: 0;
+  background: var(--meeting-surface);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+body.in-meeting .av-grid {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+body.in-meeting .av-grid.is-single .av-tile {
+  max-width: none;
+  margin: 0;
+}
+
+body.in-meeting .av-tile {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  background: transparent;
+  height: 100%;
+}
+
+body.in-meeting .av-media {
+  border-radius: 0;
+  height: 100%;
+}
+
+body.in-meeting .av-tile video,
+body.in-meeting .av-tile audio {
+  object-fit: cover;
+}
+
+body.in-meeting .av-tile-share video,
+body.in-meeting .av-tile-share audio {
+  object-fit: contain;
+  background: #020617;
+}
+
+body.in-meeting .av-header {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 6;
+  background: rgba(2, 6, 23, 0.6);
+  color: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 10px;
+  gap: 6px;
+}
+
+body.in-meeting .av-header-actions {
+  display: none;
+}
+
+body.in-meeting #av-status {
+  display: block;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+body.in-meeting .av-stage-controls {
+  top: auto;
+  right: auto;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.5);
+}
+
+body.in-meeting .av-control {
+  width: 36px;
+  height: 36px;
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--toggle-bg);
+  color: var(--meeting-text);
+  border: 1px solid var(--toggle-border);
+  font-weight: 600;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.25);
+}
+
+body.in-meeting .theme-toggle {
   display: none;
 }
 
@@ -918,7 +1107,7 @@ footer {
 
 .av-media-status {
   position: absolute;
-  top: 10px;
+  bottom: 10px;
   right: 10px;
   display: inline-flex;
   gap: 6px;
@@ -981,7 +1170,7 @@ footer {
 .av-name-placeholder {
   position: absolute;
   left: 12px;
-  right: 12px;
+  right: 72px;
   color: #f8fafc;
   text-shadow: 0 2px 4px rgba(15, 23, 42, 0.6);
   z-index: 2;
