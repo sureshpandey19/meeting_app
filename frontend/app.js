@@ -792,7 +792,7 @@ function reconcileRemoteParticipants() {
   remotes.forEach((participant) => {
     if (!participant) return;
     allowedKeys.add(getParticipantKey(participant, "camera"));
-    const info = getOrCreateRemoteTile(participant);
+    const info = getOrCreateRemoteTile(participant, "camera");
     if (!info || !info.media) return;
     const pubs = [];
     const videoTracks = participant.videoTracks;
@@ -807,21 +807,30 @@ function reconcileRemoteParticipants() {
       participant.tracks.forEach((pub) => pubs.push(pub));
     }
     pubs.forEach((pub) => {
-      if (!pub || !pub.track) return;
+      if (!pub) return;
+      const isScreen = isScreenShareTrack(pub, pub.track);
+      if (isScreen) {
+        allowedKeys.add(getParticipantKey(participant, "screen"));
+      }
+      if (typeof pub.setSubscribed === "function") {
+        pub.setSubscribed(true);
+      }
+      if (!pub.track) return;
       const kind = pub.track.kind || pub.kind;
-      if (kind === "video" && !info.media.querySelector("video")) {
-        if (!isScreenShareTrack(pub, pub.track)) {
-          attachTrack(pub.track, info.media);
-          setTileVideoState(info.tile, true);
-        } else {
-          allowedKeys.add(getParticipantKey(participant, "screen"));
+      if (isScreen && kind === "video") {
+        const screenInfo = getOrCreateRemoteTile(participant, "screen");
+        if (screenInfo && screenInfo.media && !screenInfo.media.querySelector("video")) {
+          attachTrack(pub.track, screenInfo.media);
+          setTileVideoState(screenInfo.tile, true);
         }
+        return;
+      }
+      if (kind === "video" && !info.media.querySelector("video")) {
+        attachTrack(pub.track, info.media);
+        setTileVideoState(info.tile, true);
       }
       if (kind === "audio" && !info.media.querySelector("audio")) {
         attachTrack(pub.track, info.media);
-      }
-      if (isScreenShareTrack(pub, pub.track)) {
-        allowedKeys.add(getParticipantKey(participant, "screen"));
       }
     });
     updateRemoteTileState(participant);
@@ -829,6 +838,10 @@ function reconcileRemoteParticipants() {
   const staleKeys = [];
   remoteTiles.forEach((info, key) => {
     if (!allowedKeys.has(key)) {
+      const hasVideo = info.media && info.media.querySelector("video");
+      if (info.tile && info.tile.classList.contains("av-tile-share") && hasVideo) {
+        return;
+      }
       info.tile.remove();
       staleKeys.push(key);
     }
@@ -1145,6 +1158,9 @@ async function joinLiveKit(meetingId) {
           return;
         }
         logDebug(`track published ${publication.kind || "?"} by ${participant.name || participant.identity || "?"}`);
+        if (isScreenShareTrack(publication, publication.track)) {
+          getOrCreateRemoteTile(participant, "screen");
+        }
         if (typeof publication.setSubscribed === "function") {
           publication.setSubscribed(true);
         }

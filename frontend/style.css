@@ -260,6 +260,9 @@ body.in-meeting .av-stage-controls {
   padding: 8px 12px;
   border-radius: 999px;
   background: rgba(2, 6, 23, 0.5);
+  z-index: 10;
+  display: inline-flex;
+  pointer-events: auto;
 }
 
 body.in-meeting .av-control {
