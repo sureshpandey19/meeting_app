@@ -166,6 +166,12 @@ Updates (2026-02-01)
 - Tile UI cleanup: name/status overlays repositioned to avoid overlap; per-tile mic/cam icons removed.
 - Remote tile reconciliation to reduce missing/duplicate tiles across clients.
 
+Updates (2026-02-03)
+- Screen-share reliability fixes for remote viewers (screen tiles created/subscribed correctly).
+- Cleanup logic adjusted to avoid removing active screen-share tiles.
+- Debug badge added temporarily for diagnostics, then removed.
+- Control bar visibility stabilized after stopping screen share.
+
 Phase 4 - Collaboration, Admin, and AI Assist
 Status: Planned
 Goals
